@@ -7,14 +7,15 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1f6feb">
 <style>
-  :root { --bg:#f6f7f9; --fg:#1b1f24; --muted:#667085; --card:#fff; --line:#e4e7ec; --accent:#1f6feb; --warn:#b54708; --warnbg:#fef0c7; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --accent:#58a6ff; --warn:#f0b72f; --warnbg:#3b2e0a; } }
+  :root { --bg:#f6f7f9; --fg:#1b1f24; --muted:#667085; --card:#fff; --line:#e4e7ec; --accent:#1f6feb; --warn:#b54708; --warnbg:#fef0c7; --ok:#067647; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --accent:#58a6ff; --warn:#f0b72f; --warnbg:#3b2e0a; --ok:#3fb950; } }
   * { box-sizing:border-box; }
   body { margin:0; font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--fg); }
   main { max-width:560px; margin:0 auto; padding:16px; }
   h1 { font-size:20px; margin:4px 0 12px; }
   label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
   input, select { width:100%; padding:10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); }
+  input[type=checkbox] { width:auto; margin:0 6px 0 0; }
   .row { display:flex; gap:8px; } .row > div { flex:1; }
   #hint { font-size:13px; color:var(--muted); min-height:1.5em; margin-top:4px; }
   .item { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
@@ -22,16 +23,28 @@
   .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
   .name { font-weight:600; }
   .cardimg { width:80px; height:80px; object-fit:contain; display:block; margin-bottom:4px; }
-  .rate { font-size:22px; font-weight:700; color:var(--accent); white-space:nowrap; }
+  .rate { font-size:22px; font-weight:700; color:var(--accent); white-space:nowrap; text-align:right; }
   .sub { font-size:13px; color:var(--muted); }
   .badge { display:inline-block; font-size:12px; padding:0 6px; border-radius:4px; background:var(--warnbg); color:var(--warn); margin-left:4px; }
+  .warn { color:var(--warn); }
+  .ok { color:var(--ok); }
   a { color:var(--accent); }
   footer { font-size:12px; color:var(--muted); margin-top:20px; }
-  details { margin-bottom:8px; font-size:14px; }
-  .qrow { display:flex; gap:8px; } .qrow input { flex:1; } .qrow button { margin-top:0; white-space:nowrap; }
-  #near { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-  #near button { margin-top:0; padding:4px 10px; font-size:14px; }
+  details { margin-bottom:8px; font-size:14px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 12px; }
+  summary { cursor:pointer; font-weight:600; }
   button { margin-top:10px; padding:8px 14px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); }
+  .qrow { display:flex; gap:8px; } .qrow input { flex:1; } .qrow button { margin-top:0; white-space:nowrap; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+  .chips button { margin-top:0; padding:4px 10px; font-size:14px; }
+  .task { padding:8px 0; border-top:1px solid var(--line); } .task:first-of-type { border-top:0; }
+  .task label { display:flex; align-items:center; margin:0; color:var(--fg); font-size:14px; }
+  .catpick { display:flex; flex-wrap:wrap; gap:4px 12px; }
+  .catpick label { display:flex; align-items:center; margin:2px 0; color:var(--fg); font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td { padding:4px 2px; border-top:1px solid var(--line); vertical-align:top; }
+  td.num { text-align:right; white-space:nowrap; }
+  .logbtn { margin-top:6px; padding:4px 10px; font-size:14px; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:8px; font-size:14px; }
 </style>
 </head>
 <body>
@@ -48,12 +61,18 @@
     <div class="sub" id="srcmsg"></div>
   </details>
 
+  <details id="todo">
+    <summary id="todoTitle">本月待辦</summary>
+    <div id="todoList"></div>
+  </details>
+
   <label for="q">店名搜尋</label>
   <div class="qrow">
     <input id="q" placeholder="例：全家、momo、高鐵" autocomplete="off">
     <button id="locate">📍 附近商家</button>
   </div>
-  <div id="near"></div>
+  <div id="near" class="chips"></div>
+  <div id="recent" class="chips"></div>
   <div id="hint"></div>
 
   <div class="row">
@@ -68,29 +87,123 @@
   </div>
 
   <div id="list"></div>
+
+  <details id="planBox" style="margin-top:16px">
+    <summary>台新 Richart 權益切換建議</summary>
+    <label for="plan">目前切換中的權益（設定後排名只算這個方案）</label>
+    <select id="plan"></select>
+    <label>今天預計會去的通路</label>
+    <div id="planCats" class="catpick"></div>
+    <div id="planAdvice"></div>
+  </details>
+
+  <details id="monthBox">
+    <summary id="monthTitle">本月回饋小結</summary>
+    <div id="monthList"></div>
+  </details>
+
   <footer id="foot"></footer>
 </main>
+<div id="toast" hidden></div>
 
 <script>
 let DB;
 const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// 資料裡的連結只允許 http(s)，避免 javascript: 之類的網址
+const safeUrl = u => /^https?:\/\//i.test(u || "") ? esc(u) : "#";
 
+// ---------- 本機儲存（資料網址、權杖、登錄勾選、記帳都只存在這台裝置） ----------
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+  json(k, fallback) { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } },
+  setJson(k, v) { this.set(k, JSON.stringify(v)); }
+};
+
+// ---------- 日期 ----------
 function today() {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
-
-function isActive(o, day) {
-  return (!o.start || o.start <= day) && (!o.end || o.end >= day);
+function daysBetween(from, to) { return Math.round((Date.parse(to) - Date.parse(from)) / 86400000); }
+function isActive(o, day) { return (!o.start || o.start <= day) && (!o.end || o.end >= day); }
+function isoDate(y, m, d) { return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
+// period：month / quarter / once（上限用的「月」「季」同義）
+function periodKey(period, day) {
+  const y = +day.slice(0, 4), m = +day.slice(5, 7);
+  if (period === "month" || period === "月") return day.slice(0, 7);
+  if (period === "quarter" || period === "季") return `${y}-Q${Math.ceil(m / 3)}`;
+  return "once";
+}
+function periodEnd(period, day) {
+  const y = +day.slice(0, 4), m = +day.slice(5, 7);
+  const last = mm => isoDate(y, mm, new Date(y, mm, 0).getDate());
+  if (period === "month" || period === "月") return last(m);
+  if (period === "quarter" || period === "季") return last(Math.ceil(m / 3) * 3);
+  return null;
+}
+function leftText(end, day) {
+  const n = daysBetween(day, end);
+  return n === 0 ? "今天截止" : `剩 ${n} 天`;
 }
 
-// 每張卡 × 可用支付方式，取符合類別且在期限內的最高回饋
+// ---------- 登錄待辦 ----------
+function taskById(id) { return (DB.tasks || []).find(t => t.id === id); }
+function taskDone(t, day) { return store.json("card.tasks", {})[t.id] === periodKey(t.period, day); }
+function taskDeadline(t, day) {
+  const pe = periodEnd(t.period, day);
+  return pe && pe < t.end ? pe : t.end;
+}
+
+function renderTodo() {
+  const day = today();
+  const tasks = (DB.tasks || []).filter(t => isActive(t, day));
+  const pending = tasks.filter(t => !taskDone(t, day)).length;
+  $("todoTitle").innerHTML = `本月待辦 ${pending ? `<span class="badge">${pending} 項未完成</span>` : '<span class="ok">✓</span>'}`;
+  $("todoList").innerHTML = tasks.length ? tasks.map(t => {
+    const done = taskDone(t, day);
+    return `<div class="task"><label><input type="checkbox" data-task="${esc(t.id)}"${done ? " checked" : ""}>${esc(t.text)}</label>
+      <div class="sub">${t.period === "month" ? "每月" : t.period === "quarter" ? "每季" : "活動期間一次"}・${leftText(taskDeadline(t, day), day)}${t.note ? "・" + esc(t.note) : ""}${t.url ? ` <a href="${safeUrl(t.url)}" target="_blank" rel="noopener">官網</a>` : ""}</div></div>`;
+  }).join("") : '<p class="sub">目前沒有需要登錄的活動。</p>';
+  $("todoList").querySelectorAll("input[data-task]").forEach(cb => cb.addEventListener("change", () => {
+    const t = taskById(cb.dataset.task), map = store.json("card.tasks", {});
+    if (cb.checked) map[t.id] = periodKey(t.period, today()); else delete map[t.id];
+    store.setJson("card.tasks", map);
+    renderAll();
+  }));
+}
+
+// ---------- 上限用量（由記帳紀錄推算） ----------
+function capUsed(group, key) {
+  return store.json("card.log", []).filter(e => e.capGroup === group && e.capKey === key).reduce((s, e) => s + (e.bonus || 0), 0);
+}
+
+// 一筆優惠在指定金額下的實際回饋；cap 只限制加碼部分（rate - base）
+function evaluate(o, amount, day) {
+  const base = o.base || 0;
+  let remaining = Infinity, capKey = null;
+  if (o.cap) {
+    capKey = periodKey(o.cap.period, day);
+    remaining = Math.max(0, o.cap.amount - capUsed(o.cap.group, capKey));
+  }
+  if (amount > 0) {
+    const fullBonus = amount * (o.rate - base) / 100;
+    const bonus = Math.min(fullBonus, remaining);
+    const reward = amount * base / 100 + bonus;
+    return { reward, bonus, effRate: reward / amount * 100, capped: bonus < fullBonus, remaining, capKey };
+  }
+  return { reward: null, bonus: 0, effRate: remaining <= 0 ? base : o.rate, capped: remaining <= 0, remaining, capKey };
+}
+
+// ---------- 排名 ----------
 function rank(catId, amount) {
   const day = today();
   const cat = DB.categories.find(c => c.id === catId);
-  const payName = id => DB.payments.find(p => p.id === id).name;
+  const payName = id => (DB.payments.find(p => p.id === id) || { name: id }).name;
   const query = $("q").value.trim().toLowerCase();
   const weekday = new Date().getDay();
+  const plan = store.get("card.plan");
   const results = [];
   for (const card of DB.cards) {
     if (cat.acceptedCards && !cat.acceptedCards.includes(card.id)) continue;
@@ -98,25 +211,28 @@ function rank(catId, amount) {
       const matches = DB.offers.filter(o =>
         o.card === card.id && o.payments.includes(pay) &&
         (o.categories.includes("*") || o.categories.includes(catId)) && isActive(o, day) &&
-        (!o.merchants || o.merchants.some(m => query.includes(m.toLowerCase()))));
+        (!o.merchants || o.merchants.some(m => query.includes(m.toLowerCase()))) &&
+        (!plan || !o.plan || o.plan === plan));
       if (!matches.length) continue;
-      const best = matches.reduce((a, b) => (b.rate > a.rate ? b : a));
+      // 依實際可拿的回饋挑最佳（上限用完的優惠會自動讓位）
+      const scored = matches.map(o => ({ o, ev: evaluate(o, amount, day) }))
+        .sort((a, b) => b.ev.effRate - a.ev.effRate || b.o.rate - a.o.rate);
+      const { o: best, ev } = scored[0];
       // 支付平台（card:"*"）的店家活動，疊加在卡片回饋之上
       const plats = DB.offers.filter(o =>
         o.card === "*" && o.payments.includes(pay) && isActive(o, day) &&
-        o.merchants.some(m => query && query.includes(m.toLowerCase())) &&
+        (o.merchants || []).some(m => query && query.includes(m.toLowerCase())) &&
         (!o.weekdays || o.weekdays.includes(weekday)) &&
         !(amount > 0 && o.minSpend && amount < o.minSpend));
       const plat = plats.length ? plats.reduce((a, b) => (b.rate > a.rate ? b : a)) : null;
-      let reward = null, capped = false;
-      if (amount > 0) {
-        // cap 只限制加碼部分（rate - base）
-        const base = amount * (best.base || 0) / 100;
-        let bonus = amount * (best.rate - (best.base || 0)) / 100;
-        if (best.cap && bonus > best.cap.amount) { bonus = best.cap.amount; capped = true; }
-        reward = base + bonus + (plat ? amount * plat.rate / 100 : 0);
-      }
-      results.push({ card, pay: payName(pay), offer: best, plat, rate: best.rate + (plat ? plat.rate : 0), reward, capped });
+      const platReward = plat && amount > 0 ? amount * plat.rate / 100 : 0;
+      const task = best.task && taskById(best.task);
+      results.push({
+        card, pay, payLabel: payName(pay), offer: best, ev, plat,
+        rate: ev.effRate + (plat ? plat.rate : 0),
+        reward: amount > 0 ? ev.reward + platReward : null,
+        pendingTask: task && isActive(task, day) && !taskDone(task, day) ? task : null
+      });
     }
   }
   results.sort((a, b) => (b.reward ?? b.rate) - (a.reward ?? a.rate) || b.rate - a.rate);
@@ -125,29 +241,37 @@ function rank(catId, amount) {
   return { results, noData, cat };
 }
 
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-
+let lastResults = [];
 function render() {
+  const day = today();
   const amount = parseFloat($("amt").value) || 0;
   const { results, noData, cat } = rank($("cat").value, amount);
+  lastResults = results;
   let html = cat.note ? `<p class="sub">⚠ ${esc(cat.note)}</p>` : "";
+  const plan = store.get("card.plan");
+  if (plan) html += `<p class="sub">台新 Richart 卡只計算「${esc(plan)}」方案（可在下方權益建議修改）。</p>`;
   results.forEach((r, i) => {
-    const o = r.offer;
-    const lines = [];
+    const o = r.offer, p = r.plat, lines = [];
+    if (r.pendingTask) lines.push(`<span class="warn">⚠ 尚未勾選「${esc(r.pendingTask.text)}」，沒登錄拿不到這個回饋</span>`);
     if (o.requires) lines.push("條件：" + esc(o.requires));
-    if (o.cap) lines.push(`${o.base ? "加碼" : "回饋"}上限 ${o.cap.amount} 元/${esc(o.cap.period)}${r.capped ? "（本筆已達上限）" : ""}`);
-    if (o.end) lines.push("期限至 " + o.end);
+    if (o.cap) {
+      const left = Math.floor(r.ev.remaining), kind = o.base ? "加碼" : "回饋";
+      const capNote = left <= 0 ? `<span class="warn">（本期已用完，只算基本 ${o.base || 0}%）</span>`
+        : r.ev.capped ? `<span class="warn">（這筆超過剩餘額度，${kind}只算 ${left} 元）</span>` : "";
+      lines.push(`${kind}上限 ${o.cap.amount} 元/${esc(o.cap.period)}，本期剩 ${left} 元${capNote}`);
+    }
+    if (o.end) lines.push(`期限至 ${o.end}（${leftText(o.end, day)}）`);
     if (o.note) lines.push(esc(o.note));
-    const p = r.plat;
-    if (p) lines.push(`<b>＋${esc(r.pay)} 平台活動 ${p.rate}%</b>${p.minSpend ? `（單筆滿 ${p.minSpend}）` : ""}${p.end ? `，至 ${p.end}` : ""}${p.note ? "，" + esc(p.note) : ""}${p.source ? ` <a href="${esc(p.source)}" target="_blank" rel="noopener">來源</a>` : ""}`);
+    if (p) lines.push(`<b>＋${esc(r.payLabel)} 平台活動 ${p.rate}%</b>${p.minSpend ? `（單筆滿 ${p.minSpend}）` : ""}${p.end ? `，至 ${p.end}（${leftText(p.end, day)}）` : ""}${p.note ? "，" + esc(p.note) : ""}${p.source ? ` <a href="${safeUrl(p.source)}" target="_blank" rel="noopener">來源</a>` : ""}`);
     const unverified = o.status !== "verified" || (p && p.status !== "verified");
     html += `<div class="item${i === 0 ? " best" : ""}">
       <div class="top">
         <div>${r.card.image ? `<img class="cardimg" src="${esc(r.card.image)}" alt="">` : ""}<div class="name">${esc(r.card.name)}</div>
-          <div class="sub">${esc(r.pay)}${unverified ? '<span class="badge">待查證</span>' : ""}</div></div>
-        <div class="rate">${Math.round(r.rate * 10) / 10}%${r.reward !== null ? `<div class="sub">約 ${Math.floor(r.reward)} 元</div>` : ""}</div>
+          <div class="sub">${esc(r.payLabel)}${unverified ? '<span class="badge">待查證</span>' : ""}</div></div>
+        <div class="rate">${Math.round(r.rate * 100) / 100}%${r.reward !== null ? `<div class="sub">約 ${Math.floor(r.reward)} 元</div>` : ""}</div>
       </div>
-      <div class="sub">${lines.join("<br>")}${o.source ? `<br><a href="${esc(o.source)}" target="_blank" rel="noopener">來源</a>` : ""}</div>
+      <div class="sub">${lines.join("<br>")}${o.source ? `<br><a href="${safeUrl(o.source)}" target="_blank" rel="noopener">來源</a>` : ""}</div>
+      ${amount > 0 ? `<button class="logbtn" data-i="${i}">刷了這張，記一筆</button>` : ""}
     </div>`;
   });
   if (!results.length) html += `<p class="sub">此類別沒有任何優惠資料。</p>`;
@@ -155,8 +279,110 @@ function render() {
   const notes = DB.cards.filter(c => c.note && results.some(r => r.card.id === c.id));
   if (notes.length) html += `<p class="sub">卡片備註：<br>${notes.map(c => `・${esc(c.name)}：${esc(c.note)}`).join("<br>")}</p>`;
   $("list").innerHTML = html;
+  $("list").querySelectorAll(".logbtn").forEach(b => b.addEventListener("click", () => addLog(lastResults[b.dataset.i], amount)));
 }
 
+// ---------- 記帳 ----------
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2500);
+}
+
+function addLog(r, amount) {
+  const day = today();
+  const merchant = $("q").value.trim() || DB.categories.find(c => c.id === $("cat").value).name;
+  const log = store.json("card.log", []);
+  log.push({
+    id: Date.now(), date: day, merchant, amount,
+    card: r.card.id, cardName: r.card.name, pay: r.payLabel,
+    reward: Math.round(r.reward * 100) / 100,
+    capGroup: r.offer.cap ? r.offer.cap.group : null, capKey: r.ev.capKey, bonus: r.offer.cap ? r.ev.bonus : 0
+  });
+  store.setJson("card.log", log);
+  remember($("q").value.trim());
+  toast(`已記錄：${r.card.name} ${amount} 元，回饋約 ${Math.floor(r.reward)} 元`);
+  renderAll();
+}
+
+function renderMonth() {
+  const month = today().slice(0, 7);
+  const entries = store.json("card.log", []).filter(e => e.date.slice(0, 7) === month);
+  const total = entries.reduce((s, e) => s + e.reward, 0), spend = entries.reduce((s, e) => s + e.amount, 0);
+  $("monthTitle").textContent = `本月回饋小結（${entries.length} 筆，約 ${Math.floor(total)} 元）`;
+  if (!entries.length) { $("monthList").innerHTML = '<p class="sub">輸入金額後按「刷了這張，記一筆」就會記在這裡（只存在這台裝置）。</p>'; return; }
+  const byCard = {};
+  entries.forEach(e => { const k = e.cardName; byCard[k] = byCard[k] || { amount: 0, reward: 0 }; byCard[k].amount += e.amount; byCard[k].reward += e.reward; });
+  $("monthList").innerHTML =
+    `<p>消費 ${spend.toLocaleString()} 元，回饋約 ${Math.floor(total)} 元（${spend ? (total / spend * 100).toFixed(2) : 0}%）</p>
+    <table>${Object.entries(byCard).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.amount.toLocaleString()} 元</td><td class="num">${Math.floor(v.reward)} 元</td></tr>`).join("")}</table>
+    <p class="sub" style="margin-top:10px">明細</p>
+    <table>${entries.slice().reverse().map(e => `<tr><td>${e.date.slice(5)}</td><td>${esc(e.merchant)}<div class="sub">${esc(e.cardName)}・${esc(e.pay)}</div></td><td class="num">${e.amount} 元<div class="sub">+${Math.floor(e.reward)}</div></td><td><button class="logbtn" data-del="${e.id}">✕</button></td></tr>`).join("")}</table>
+    <p class="sub">回饋為依當時資料的估算，實際以銀行入帳為準。</p>`;
+  $("monthList").querySelectorAll("button[data-del]").forEach(b => b.addEventListener("click", () => {
+    store.setJson("card.log", store.json("card.log", []).filter(e => String(e.id) !== b.dataset.del));
+    renderAll();
+  }));
+}
+
+// ---------- 常用商家 ----------
+function remember(text) {
+  if (!text) return;
+  const list = store.json("card.recent", []).filter(x => x !== text);
+  list.unshift(text);
+  store.setJson("card.recent", list.slice(0, 8));
+  renderRecent();
+}
+function renderRecent() {
+  const list = store.json("card.recent", []);
+  $("recent").innerHTML = list.length ? '<span class="sub">最近：</span>' + list.map((x, i) => `<button data-r="${i}">${esc(x)}</button>`).join("") : "";
+  $("recent").querySelectorAll("button[data-r]").forEach(b => b.addEventListener("click", () => {
+    $("q").value = list[b.dataset.r];
+    onSearch();
+  }));
+}
+
+// ---------- 台新權益建議 ----------
+function richartPlans() {
+  return [...new Set(DB.offers.filter(o => o.card === "taishin_richart" && o.plan && isActive(o, today())).map(o => o.plan))];
+}
+function renderPlan() {
+  const plans = richartPlans();
+  $("planBox").hidden = !plans.length;
+  if (!plans.length) return;
+  const cur = store.get("card.plan") || "";
+  $("plan").innerHTML = `<option value="">未設定（列出所有方案）</option>` + plans.map(p => `<option${p === cur ? " selected" : ""}>${esc(p)}</option>`).join("");
+  if (!$("planCats").children.length) {
+    $("planCats").innerHTML = DB.categories.filter(c => !c.acceptedCards).map(c => `<label><input type="checkbox" value="${esc(c.id)}">${esc(c.name)}</label>`).join("");
+    $("planCats").querySelectorAll("input").forEach(cb => cb.addEventListener("change", renderAdvice));
+  }
+  renderAdvice();
+}
+function renderAdvice() {
+  const day = today();
+  const weekend = [0, 6].includes(new Date().getDay());
+  const picked = [...$("planCats").querySelectorAll("input:checked")].map(cb => cb.value);
+  if (!picked.length) { $("planAdvice").innerHTML = '<p class="sub">勾選今天會去的通路，會建議要切哪個方案。</p>'; return; }
+  const offers = DB.offers.filter(o => o.card === "taishin_richart" && isActive(o, day) && !o.merchants);
+  const bestFor = (plan, catId) => offers
+    .filter(o => (!o.plan || o.plan === plan) && (o.categories.includes("*") || o.categories.includes(catId)))
+    .reduce((best, o) => (!best || o.rate > best.rate ? o : best), null);
+  const payName = id => (DB.payments.find(p => p.id === id) || { name: id }).name;
+  const rows = richartPlans()
+    .filter(p => p !== "假日刷" || weekend)
+    .map(plan => {
+      const per = picked.map(id => ({ id, o: bestFor(plan, id) }));
+      return { plan, per, score: per.reduce((s, x) => s + (x.o ? x.o.rate : 0), 0) };
+    })
+    .sort((a, b) => b.score - a.score);
+  const catName = id => DB.categories.find(c => c.id === id).name;
+  $("planAdvice").innerHTML = rows.slice(0, 3).map((r, i) => `<div class="item${i === 0 ? " best" : ""}">
+      <div class="name">${i === 0 ? "建議：" : ""}${esc(r.plan)}</div>
+      <div class="sub">${r.per.map(x => `${esc(catName(x.id))} ${x.o ? x.o.rate + "%" + (x.o.payments.length === 1 ? `（限${esc(payName(x.o.payments[0]))}）` : "") : "0%"}`).join("<br>")}</div>
+    </div>`).join("") +
+    `<p class="sub">以各通路最高回饋率加總比較，未考慮金額與店家是否在指定名單內${weekend ? "" : "；今天非週末，已排除假日刷（國定假日請自行判斷）"}。</p>`;
+}
+
+// ---------- 搜尋 ----------
 function onSearch() {
   const q = $("q").value.trim().toLowerCase();
   if (!q) { $("hint").textContent = ""; render(); return; }
@@ -166,26 +392,27 @@ function onSearch() {
   render();
 }
 
-// 卡片資料不放在公開網站：網址與權杖只存在本機 localStorage
-const store = {
-  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
-};
-let started = false;
+function renderAll() { renderTodo(); render(); renderMonth(); renderPlan(); renderRecent(); }
 
+// ---------- 資料載入 ----------
+let started = false;
 function start(data, extra) {
   DB = data;
   const cur = $("cat").value;
-  $("cat").innerHTML = DB.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
-  if (cur) $("cat").value = cur;
-  $("foot").textContent = `優惠資料更新：${DB.updated}${extra}。回饋上限以單筆估算，未扣除本月已用額度。「待查證」代表條件或期限未確認，刷之前請看來源。LINE Pay 平台店家活動只在「店名搜尋」命中該店、且星期與滿額符合時才加計；街口平台活動未收錄；街口「街利存」帳戶付款最高 2.5% 屬帳戶扣款，非信用卡。附近商家資料來自 OpenStreetMap，可能不完整。`;
+  $("cat").innerHTML = DB.categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  if (cur && DB.categories.some(c => c.id === cur)) $("cat").value = cur;
+  if (store.get("card.plan") && !richartPlans().includes(store.get("card.plan"))) store.set("card.plan", null);
+  $("planCats").innerHTML = "";
+  $("foot").textContent = `優惠資料更新：${DB.updated}${extra}。回饋上限依本 App 記帳紀錄推算，沒記到的消費不會扣額度。「待查證」代表條件或期限未確認，刷之前請看來源。LINE Pay 平台店家活動只在「店名搜尋」命中該店、且星期與滿額符合時才加計；街口平台活動未收錄。附近商家資料來自 OpenStreetMap，可能不完整。`;
   if (!started) {
     $("q").addEventListener("input", onSearch);
+    $("q").addEventListener("change", () => { if ($("hint").textContent.startsWith("→")) remember($("q").value.trim()); });
     $("cat").addEventListener("change", render);
     $("amt").addEventListener("input", render);
+    $("plan").addEventListener("change", () => { store.set("card.plan", $("plan").value || null); render(); });
     started = true;
   }
-  render();
+  renderAll();
 }
 
 async function loadData() {
@@ -216,19 +443,18 @@ $("save").addEventListener("click", () => {
   loadData();
 });
 $("clear").addEventListener("click", () => {
-  ["card.src", "card.tok", "card.cache"].forEach(k => store.set(k, null));
+  if (!confirm("會刪除這台裝置上的資料網址、權杖、登錄勾選與記帳紀錄，確定？")) return;
+  ["card.src", "card.tok", "card.cache", "card.tasks", "card.log", "card.recent", "card.plan"].forEach(k => store.set(k, null));
   location.reload();
 });
 loadData();
 
-// 附近商家：按下才定位一次，座標只送到 OpenStreetMap Overpass 查詢，不儲存
+// ---------- 附近商家：按下才定位一次，座標只送到 OpenStreetMap Overpass 查詢，不儲存 ----------
 const NEAR_RADIUS = 150;
-
 function distance(lat1, lon1, lat2, lon2) {
   const r = Math.PI / 180, x = (lon2 - lon1) * r * Math.cos((lat1 + lat2) / 2 * r), y = (lat2 - lat1) * r;
   return Math.round(Math.sqrt(x * x + y * y) * 6371000);
 }
-
 async function findNearby() {
   const box = $("near");
   if (!DB) { box.textContent = "請先載入優惠資料"; return; }
@@ -248,8 +474,7 @@ async function findNearby() {
     const seen = new Set();
     const places = (await r.json()).elements
       .map(el => {
-        const c = el.center || el;
-        const t = el.tags;
+        const c = el.center || el, t = el.tags;
         return { label: t.name, search: [...new Set([t.name, t.brand, t["brand:zh"]].filter(Boolean))].join(" "), d: distance(lat, lon, c.lat, c.lon) };
       })
       .sort((a, b) => a.d - b.d)
@@ -260,6 +485,7 @@ async function findNearby() {
     box.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       $("q").value = places[b.dataset.i].search;
       onSearch();
+      remember($("q").value);
     }));
   } catch (e) { box.textContent = "附近商家查詢失敗：" + e.message; }
 }
