@@ -27,11 +27,23 @@
   .badge { display:inline-block; font-size:12px; padding:0 6px; border-radius:4px; background:var(--warnbg); color:var(--warn); margin-left:4px; }
   a { color:var(--accent); }
   footer { font-size:12px; color:var(--muted); margin-top:20px; }
+  details { margin-bottom:8px; font-size:14px; }
+  button { margin-top:10px; padding:8px 14px; font-size:15px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); }
 </style>
 </head>
 <body>
 <main>
   <h1>刷哪張最划算</h1>
+
+  <details id="setup">
+    <summary>資料來源設定</summary>
+    <label for="src">資料網址</label>
+    <input id="src" placeholder="https://api.github.com/repos/帳號/repo/contents/offers.json" autocomplete="off">
+    <label for="tok">存取權杖（選填，只存在這台裝置）</label>
+    <input id="tok" type="password" autocomplete="off">
+    <button id="save">儲存並載入</button> <button id="clear">清除本機資料</button>
+    <div class="sub" id="srcmsg"></div>
+  </details>
 
   <label for="q">店名搜尋</label>
   <input id="q" placeholder="例：全家、momo、高鐵" autocomplete="off">
@@ -147,15 +159,60 @@ function onSearch() {
   render();
 }
 
-fetch("offers.json", { cache: "no-cache" }).then(r => r.json()).then(data => {
+// 卡片資料不放在公開網站：網址與權杖只存在本機 localStorage
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
+};
+let started = false;
+
+function start(data, extra) {
   DB = data;
+  const cur = $("cat").value;
   $("cat").innerHTML = DB.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
-  $("foot").textContent = `優惠資料更新：${DB.updated}。回饋上限以單筆估算，未扣除本月已用額度。「待查證」代表條件或期限未確認，刷之前請看來源。LINE Pay 平台店家活動只在「店名搜尋」命中該店、且星期與滿額符合時才加計；街口平台活動未收錄；街口「街利存」帳戶付款最高 2.5% 屬帳戶扣款，非信用卡。`;
-  $("q").addEventListener("input", onSearch);
-  $("cat").addEventListener("change", render);
-  $("amt").addEventListener("input", render);
+  if (cur) $("cat").value = cur;
+  $("foot").textContent = `優惠資料更新：${DB.updated}${extra}。回饋上限以單筆估算，未扣除本月已用額度。「待查證」代表條件或期限未確認，刷之前請看來源。LINE Pay 平台店家活動只在「店名搜尋」命中該店、且星期與滿額符合時才加計；街口平台活動未收錄；街口「街利存」帳戶付款最高 2.5% 屬帳戶扣款，非信用卡。`;
+  if (!started) {
+    $("q").addEventListener("input", onSearch);
+    $("cat").addEventListener("change", render);
+    $("amt").addEventListener("input", render);
+    started = true;
+  }
   render();
-}).catch(e => { $("list").textContent = "讀取 offers.json 失敗：" + e; });
+}
+
+async function loadData() {
+  const src = store.get("card.src"), tok = store.get("card.tok");
+  $("src").value = src || "";
+  if (!src) { $("setup").open = true; $("list").textContent = "請先設定資料來源。"; return; }
+  try {
+    const headers = { Accept: "application/vnd.github.raw" };
+    if (tok) headers.Authorization = "Bearer " + tok;
+    const r = await fetch(src, { headers, cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const text = await r.text();
+    const data = JSON.parse(text);
+    store.set("card.cache", text);
+    $("srcmsg").textContent = "";
+    start(data, "");
+  } catch (e) {
+    const cached = store.get("card.cache");
+    if (cached) start(JSON.parse(cached), `（無法連線，使用上次下載的資料：${e.message}）`);
+    else { $("setup").open = true; $("srcmsg").textContent = "讀取失敗：" + e.message; $("list").textContent = ""; }
+  }
+}
+
+$("save").addEventListener("click", () => {
+  store.set("card.src", $("src").value.trim() || null);
+  if ($("tok").value) store.set("card.tok", $("tok").value.trim());
+  $("tok").value = "";
+  loadData();
+});
+$("clear").addEventListener("click", () => {
+  ["card.src", "card.tok", "card.cache"].forEach(k => store.set(k, null));
+  location.reload();
+});
+loadData();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 </script>
