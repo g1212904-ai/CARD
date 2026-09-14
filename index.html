@@ -427,8 +427,9 @@ async function loadData() {
     const text = await r.text();
     const data = JSON.parse(text);
     store.set("card.cache", text);
-    $("srcmsg").textContent = "";
     start(data, "");
+    $("srcmsg").textContent = `✓ 已載入（資料更新：${data.updated}）`;
+    $("setup").open = false;
   } catch (e) {
     const cached = store.get("card.cache");
     if (cached) start(JSON.parse(cached), `（無法連線，使用上次下載的資料：${e.message}）`);
@@ -440,6 +441,7 @@ $("save").addEventListener("click", () => {
   store.set("card.src", $("src").value.trim() || null);
   if ($("tok").value) store.set("card.tok", $("tok").value.trim());
   $("tok").value = "";
+  $("srcmsg").textContent = "載入中…";
   loadData();
 });
 $("clear").addEventListener("click", () => {

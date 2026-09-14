@@ -1,5 +1,5 @@
 // 網路優先，離線時退回快取；只快取本站檔案（卡片資料由頁面自行存在 localStorage）
-const CACHE = "shua-v4";
+const CACHE = "shua-v5";
 const FILES = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))));
