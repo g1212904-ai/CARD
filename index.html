@@ -54,9 +54,9 @@
   <details id="setup">
     <summary>資料來源設定</summary>
     <label for="src">資料網址</label>
-    <input id="src" placeholder="https://api.github.com/repos/帳號/repo/contents/offers.json" autocomplete="off">
+    <input id="src" placeholder="請貼上資料網址" autocomplete="off">
     <label for="tok">存取權杖（選填，只存在這台裝置）</label>
-    <input id="tok" type="password" autocomplete="off">
+    <input id="tok" type="password" placeholder="請貼上 github_pat_ 開頭的權杖" autocomplete="off">
     <button id="save">儲存並載入</button> <button id="clear">清除本機資料</button>
     <div class="sub" id="srcmsg"></div>
   </details>
@@ -438,7 +438,9 @@ async function loadData() {
 }
 
 $("save").addEventListener("click", () => {
-  store.set("card.src", $("src").value.trim() || null);
+  if (!$("src").value.trim()) { $("srcmsg").textContent = "⚠ 資料網址是空的，請先貼上網址"; return; }
+  if (!$("tok").value.trim() && !store.get("card.tok") && /api\.github\.com/.test($("src").value)) { $("srcmsg").textContent = "⚠ 權杖是空的，請貼上 github_pat_ 開頭的權杖"; return; }
+  store.set("card.src", $("src").value.trim());
   if ($("tok").value) store.set("card.tok", $("tok").value.trim());
   $("tok").value = "";
   $("srcmsg").textContent = "載入中…";
