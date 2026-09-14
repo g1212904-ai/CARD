@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 856 540">
+  <defs>
+    <linearGradient id="holo" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#b9b6b4"/>
+      <stop offset=".35" stop-color="#e4ddd8"/>
+      <stop offset=".55" stop-color="#e9d3dc"/>
+      <stop offset=".72" stop-color="#cfd9ee"/>
+      <stop offset=".88" stop-color="#b9c3e6"/>
+      <stop offset="1" stop-color="#c9c4d8"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d9d9d9"/><stop offset="1" stop-color="#9a9a9a"/>
+    </linearGradient>
+  </defs>
+  <rect width="856" height="540" rx="36" fill="url(#holo)"/>
+  <!-- chip -->
+  <rect x="96" y="190" width="110" height="82" rx="14" fill="url(#chip)" stroke="#8a8a8a" stroke-width="3"/>
+  <path d="M96 231h110M151 190v82M124 190v25M178 190v25M124 247v25M178 247v25" stroke="#8a8a8a" stroke-width="3" fill="none"/>
+  <!-- Taishin logo, vertical -->
+  <g transform="translate(70 470) rotate(-90)" fill="#8f8f95">
+    <rect x="0" y="0" width="56" height="56" rx="8" fill="none" stroke="#8f8f95" stroke-width="5"/>
+    <text x="72" y="30" font-size="30" font-family="'Noto Sans TC',sans-serif">台新銀行</text>
+    <text x="72" y="54" font-size="16" font-family="sans-serif">Taishin Bank</text>
+  </g>
+  <!-- TAISHIN POINT, vertical -->
+  <g transform="translate(470 420) rotate(-90)" font-family="sans-serif" font-size="34" letter-spacing="10" fill="#9a9aa2">
+    <text x="0" y="0">TAISHIN</text>
+    <text x="0" y="52">P</text>
+    <circle cx="52" cy="40" r="11" fill="#e0243a"/>
+    <text x="72" y="52">INT</text>
+  </g>
+  <!-- mastercard -->
+  <circle cx="690" cy="118" r="52" fill="#d5d5d8" opacity=".9"/>
+  <circle cx="690" cy="182" r="52" fill="#bdbdc2" opacity=".85"/>
+  <text transform="translate(790 190) rotate(-90)" font-family="sans-serif" font-size="28" fill="#8f8f95">mastercard.</text>
+</svg>

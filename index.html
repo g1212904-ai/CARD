@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>刷哪張</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f6feb">
+<style>
+  :root { --bg:#f6f7f9; --fg:#1b1f24; --muted:#667085; --card:#fff; --line:#e4e7ec; --accent:#1f6feb; --warn:#b54708; --warnbg:#fef0c7; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; --line:#30363d; --accent:#58a6ff; --warn:#f0b72f; --warnbg:#3b2e0a; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:4px 0 12px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px; font-size:16px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); }
+  .row { display:flex; gap:8px; } .row > div { flex:1; }
+  #hint { font-size:13px; color:var(--muted); min-height:1.5em; margin-top:4px; }
+  .item { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+  .item.best { border:2px solid var(--accent); }
+  .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .name { font-weight:600; }
+  .cardimg { width:80px; height:80px; object-fit:contain; display:block; margin-bottom:4px; }
+  .rate { font-size:22px; font-weight:700; color:var(--accent); white-space:nowrap; }
+  .sub { font-size:13px; color:var(--muted); }
+  .badge { display:inline-block; font-size:12px; padding:0 6px; border-radius:4px; background:var(--warnbg); color:var(--warn); margin-left:4px; }
+  a { color:var(--accent); }
+  footer { font-size:12px; color:var(--muted); margin-top:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>刷哪張最划算</h1>
+
+  <label for="q">店名搜尋</label>
+  <input id="q" placeholder="例：全家、momo、高鐵" autocomplete="off">
+  <div id="hint"></div>
+
+  <div class="row">
+    <div>
+      <label for="cat">通路類別</label>
+      <select id="cat"></select>
+    </div>
+    <div>
+      <label for="amt">金額（選填）</label>
+      <input id="amt" type="number" inputmode="numeric" min="0" placeholder="NT$">
+    </div>
+  </div>
+
+  <div id="list"></div>
+  <footer id="foot"></footer>
+</main>
+
+<script>
+let DB;
+const $ = id => document.getElementById(id);
+
+function today() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function isActive(o, day) {
+  return (!o.start || o.start <= day) && (!o.end || o.end >= day);
+}
+
+// 每張卡 × 可用支付方式，取符合類別且在期限內的最高回饋
+function rank(catId, amount) {
+  const day = today();
+  const cat = DB.categories.find(c => c.id === catId);
+  const payName = id => DB.payments.find(p => p.id === id).name;
+  const query = $("q").value.trim().toLowerCase();
+  const weekday = new Date().getDay();
+  const results = [];
+  for (const card of DB.cards) {
+    if (cat.acceptedCards && !cat.acceptedCards.includes(card.id)) continue;
+    for (const pay of card.payments) {
+      const matches = DB.offers.filter(o =>
+        o.card === card.id && o.payments.includes(pay) &&
+        (o.categories.includes("*") || o.categories.includes(catId)) && isActive(o, day) &&
+        (!o.merchants || o.merchants.some(m => query.includes(m.toLowerCase()))));
+      if (!matches.length) continue;
+      const best = matches.reduce((a, b) => (b.rate > a.rate ? b : a));
+      // 支付平台（card:"*"）的店家活動，疊加在卡片回饋之上
+      const plats = DB.offers.filter(o =>
+        o.card === "*" && o.payments.includes(pay) && isActive(o, day) &&
+        o.merchants.some(m => query && query.includes(m.toLowerCase())) &&
+        (!o.weekdays || o.weekdays.includes(weekday)) &&
+        !(amount > 0 && o.minSpend && amount < o.minSpend));
+      const plat = plats.length ? plats.reduce((a, b) => (b.rate > a.rate ? b : a)) : null;
+      let reward = null, capped = false;
+      if (amount > 0) {
+        // cap 只限制加碼部分（rate - base）
+        const base = amount * (best.base || 0) / 100;
+        let bonus = amount * (best.rate - (best.base || 0)) / 100;
+        if (best.cap && bonus > best.cap.amount) { bonus = best.cap.amount; capped = true; }
+        reward = base + bonus + (plat ? amount * plat.rate / 100 : 0);
+      }
+      results.push({ card, pay: payName(pay), offer: best, plat, rate: best.rate + (plat ? plat.rate : 0), reward, capped });
+    }
+  }
+  results.sort((a, b) => (b.reward ?? b.rate) - (a.reward ?? a.rate) || b.rate - a.rate);
+  const noData = DB.cards.filter(c =>
+    (!cat.acceptedCards || cat.acceptedCards.includes(c.id)) && !results.some(r => r.card.id === c.id));
+  return { results, noData, cat };
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function render() {
+  const amount = parseFloat($("amt").value) || 0;
+  const { results, noData, cat } = rank($("cat").value, amount);
+  let html = cat.note ? `<p class="sub">⚠ ${esc(cat.note)}</p>` : "";
+  results.forEach((r, i) => {
+    const o = r.offer;
+    const lines = [];
+    if (o.requires) lines.push("條件：" + esc(o.requires));
+    if (o.cap) lines.push(`${o.base ? "加碼" : "回饋"}上限 ${o.cap.amount} 元/${esc(o.cap.period)}${r.capped ? "（本筆已達上限）" : ""}`);
+    if (o.end) lines.push("期限至 " + o.end);
+    if (o.note) lines.push(esc(o.note));
+    const p = r.plat;
+    if (p) lines.push(`<b>＋${esc(r.pay)} 平台活動 ${p.rate}%</b>${p.minSpend ? `（單筆滿 ${p.minSpend}）` : ""}${p.end ? `，至 ${p.end}` : ""}${p.note ? "，" + esc(p.note) : ""}${p.source ? ` <a href="${esc(p.source)}" target="_blank" rel="noopener">來源</a>` : ""}`);
+    const unverified = o.status !== "verified" || (p && p.status !== "verified");
+    html += `<div class="item${i === 0 ? " best" : ""}">
+      <div class="top">
+        <div>${r.card.image ? `<img class="cardimg" src="${esc(r.card.image)}" alt="">` : ""}<div class="name">${esc(r.card.name)}</div>
+          <div class="sub">${esc(r.pay)}${unverified ? '<span class="badge">待查證</span>' : ""}</div></div>
+        <div class="rate">${Math.round(r.rate * 10) / 10}%${r.reward !== null ? `<div class="sub">約 ${Math.floor(r.reward)} 元</div>` : ""}</div>
+      </div>
+      <div class="sub">${lines.join("<br>")}${o.source ? `<br><a href="${esc(o.source)}" target="_blank" rel="noopener">來源</a>` : ""}</div>
+    </div>`;
+  });
+  if (!results.length) html += `<p class="sub">此類別沒有任何優惠資料。</p>`;
+  if (noData.length) html += `<p class="sub">無資料：${noData.map(c => esc(c.name)).join("、")}</p>`;
+  const notes = DB.cards.filter(c => c.note && results.some(r => r.card.id === c.id));
+  if (notes.length) html += `<p class="sub">卡片備註：<br>${notes.map(c => `・${esc(c.name)}：${esc(c.note)}`).join("<br>")}</p>`;
+  $("list").innerHTML = html;
+}
+
+function onSearch() {
+  const q = $("q").value.trim().toLowerCase();
+  if (!q) { $("hint").textContent = ""; render(); return; }
+  const hit = DB.categories.find(c => c.keywords.some(k => q.includes(k.toLowerCase()) || k.toLowerCase().includes(q)));
+  if (hit) { $("cat").value = hit.id; $("hint").textContent = "→ " + hit.name; }
+  else $("hint").textContent = "找不到對應類別，請手動選擇";
+  render();
+}
+
+fetch("offers.json", { cache: "no-cache" }).then(r => r.json()).then(data => {
+  DB = data;
+  $("cat").innerHTML = DB.categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  $("foot").textContent = `優惠資料更新：${DB.updated}。回饋上限以單筆估算，未扣除本月已用額度。「待查證」代表條件或期限未確認，刷之前請看來源。LINE Pay 平台店家活動只在「店名搜尋」命中該店、且星期與滿額符合時才加計；街口平台活動未收錄；街口「街利存」帳戶付款最高 2.5% 屬帳戶扣款，非信用卡。`;
+  $("q").addEventListener("input", onSearch);
+  $("cat").addEventListener("change", render);
+  $("amt").addEventListener("input", render);
+  render();
+}).catch(e => { $("list").textContent = "讀取 offers.json 失敗：" + e; });
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
